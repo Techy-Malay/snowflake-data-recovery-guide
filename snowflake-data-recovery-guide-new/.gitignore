@@ -1,0 +1,50 @@
+# .gitignore - Tells Git which files to ignore (not upload to GitHub)
+# This keeps your repository clean and secure
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Snowflake credentials (NEVER commit these!)
+credentials.json
+snowflake_credentials.json
+*.pem
+*.key
+
+# Environment files
+.env
+.env.local
+*.env
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Python (if any scripts are added later)
+__pycache__/
+*.py[cod]
+.Python
+venv/
+.venv/
+
+# Node (if any tools are added later)
+node_modules/
+
+# Backup files
+*.bak
+*.backup
+*_backup.*
