@@ -62,16 +62,26 @@ INSERT INTO orders VALUES
 -- Step 3: Verify original data (5 columns, 4 rows)
 SELECT 'BEFORE - Original table structure and data:' AS status;
 SELECT * FROM orders;
+-- 📸 SCREENSHOT #1: 01_before_data.png (capture the 5 columns above)
 SELECT COUNT(*) AS row_count FROM orders;
 
 -- ============================================================================
 -- IMPORTANT: Note this timestamp for recovery!
--- Wait 1-2 minutes before proceeding to Step 4
--- This creates a Time Travel window for recovery
 -- ============================================================================
 SELECT CURRENT_TIMESTAMP() AS recovery_point_timestamp;
 -- SAVE THIS TIMESTAMP! You will need it for Script 02 recovery.
---2026-02-22 10:37:25.787 -0800
+-- Example: 2026-03-05 09:15:00.123 -0800 (yours will be different)
+
+-- ############################################################################
+-- #                                                                          #
+-- #   ⏸️  PAUSE HERE! WAIT 2-3 MINUTES BEFORE CONTINUING!                    #
+-- #                                                                          #
+-- #   📸 Take Screenshot: 01_before_data.png (SELECT * FROM orders above)    #
+-- #   ✍️  COPY THE TIMESTAMP ABOVE - You need it for recovery!               #
+-- #                                                                          #
+-- #   This wait creates a Time Travel window for recovery.                   #
+-- #                                                                          #
+-- ############################################################################
 
 /*
 --------------------------------------------------------------------------------
@@ -82,6 +92,7 @@ User's action: Rewrote table definition but FORGOT existing columns
 --------------------------------------------------------------------------------
 */
 
+-- ⚠️ DANGER ZONE - This will cause DATA LOSS!
 -- WRONG APPROACH: This DROPS columns not in the new definition!
 CREATE OR ALTER TABLE orders (
     order_id    INT,
@@ -93,6 +104,7 @@ CREATE OR ALTER TABLE orders (
 -- Step 4: Check the damage
 SELECT 'AFTER - Table structure after CREATE OR ALTER:' AS status;
 SELECT * FROM orders;
+-- 📸 SCREENSHOT #2: 02_after_data_loss.png (only 3 columns - data LOST!)
 DESC TABLE orders;
 
 /*
