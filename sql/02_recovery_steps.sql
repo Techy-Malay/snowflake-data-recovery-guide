@@ -58,6 +58,7 @@ Strategy: Find a timestamp AFTER table creation but BEFORE the damaging change.
 
 -- Method A: Use INFORMATION_SCHEMA (NO LATENCY - use for recent changes)
 -- Shows when table was created and last modified
+-- ⚠️ NOTE: Timestamps shown are in your SESSION TIMEZONE
 SELECT TABLE_NAME, CREATED, LAST_ALTERED
 FROM DATA_RECOVERY_DEMO.INFORMATION_SCHEMA.TABLES
 WHERE TABLE_NAME = 'ORDERS';
@@ -80,6 +81,40 @@ LIMIT 5;
 -- 2. Get destructive query time from QUERY_HISTORY (e.g., 2026-02-22 18:40:39)
 -- 3. Pick any time between them (e.g., 2026-02-22 18:36:00)
 
+-- ############################################################################
+-- #  RECOMMENDED: USE OFFSET METHOD (NO TIMEZONE ISSUES!)                    #
+-- #  OFFSET => -300 means "300 seconds ago" - much simpler!                  #
+-- ############################################################################
+
+-- STEP 2B: Calculate Valid OFFSET Range
+-- Run this query to find valid OFFSET values for your recovery:
+SELECT 
+    DATEDIFF('second', CREATED, CURRENT_TIMESTAMP()) AS secs_since_insert,
+    DATEDIFF('second', LAST_ALTERED, CURRENT_TIMESTAMP()) AS secs_since_damage,
+    '--- VALID OFFSET RANGE ---' AS info,
+    -DATEDIFF('second', CREATED, CURRENT_TIMESTAMP()) + 10 AS min_offset_value,
+    -DATEDIFF('second', LAST_ALTERED, CURRENT_TIMESTAMP()) - 10 AS max_offset_value
+FROM DATA_RECOVERY_DEMO.INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME = 'ORDERS';
+
+/*
+    OFFSET VISUAL GUIDE:
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                    NOW
+    -1800        -1200         -600          -300         -60        │
+    (30 min)    (20 min)      (10 min)      (5 min)     (1 min)      │
+       │            │             │             │           │        │
+       │            │             │             │           │        │
+     INSERT    ─────┴─────  VALID RANGE  ──────┴───── CREATE OR ALTER
+     DATA                   FOR OFFSET                  (damage)
+    
+    Pick any OFFSET value BETWEEN secs_since_damage and secs_since_insert
+    (with negative sign!)
+    
+    Example: If secs_since_insert=1200 and secs_since_damage=300
+             Valid OFFSET: -400 to -1100 (pick -600 for safety)
+*/
+
 /*
 --------------------------------------------------------------------------------
 STEP 3: Recover Data Using Time Travel CLONE
@@ -89,15 +124,35 @@ Use CLONE AT(TIMESTAMP) to recover the table state before the change.
 --------------------------------------------------------------------------------
 */
 
--- ⚠️ GITHUB USERS: REPLACE THIS TIMESTAMP WITH YOUR OWN!
--- Use a timestamp between CREATED and LAST_ALTERED from Step 2 above
--- Example below is from author's test - it will NOT work for you
+-- First, try UNDROP to show why it doesn't work (for educational purposes)
+-- UNDROP TABLE orders;  -- This will fail or restore wrong version
+
+-- 📸 SCREENSHOT #4: 04_error_time_travel.png - Run this to capture error:
+-- SELECT * FROM orders AT(TIMESTAMP => '2020-01-01'::TIMESTAMP);
+-- (Shows: "Time travel data is not available...")
+
+-- ⚠️ METHOD 1: TIMESTAMP (timezone-sensitive - can cause errors!)
+-- Use the timestamp you saved from Script 01, Step 3
+-- Example below is from author's test - yours will be different
+-- CREATE OR REPLACE TABLE orders_recovered CLONE orders 
+-- AT(TIMESTAMP => 'YYYY-MM-DD HH:MI:SS'::TIMESTAMP);  -- ← PASTE YOUR TIMESTAMP HERE!
+
+-- ✅ METHOD 2: OFFSET (RECOMMENDED - no timezone issues!)
+-- Use the values from STEP 2B query above:
+-- Pick a negative number BETWEEN secs_since_damage and secs_since_insert
+-- Example: If secs_since_insert=1200, secs_since_damage=300, use OFFSET => -600
 CREATE OR REPLACE TABLE orders_recovered CLONE orders 
-AT(TIMESTAMP => '2026-02-22 18:36:00'::TIMESTAMP);  -- ← CHANGE THIS!
+AT(OFFSET => -1600);  -- ← CHANGE THIS based on your STEP 2B results!
+
+
 
 -- Verify recovered data - should show all 5 original columns
 DESC TABLE orders_recovered;
 SELECT * FROM orders_recovered;
+-- 📸 SCREENSHOT #3: 03_recovery_success.png (all 5 columns restored!)
+
+-- 📸 SCREENSHOT #5: 05_clone_success.png - Run a fresh clone to capture success:
+-- CREATE TABLE orders_clone_screenshot CLONE orders AT(OFFSET => -60);
 
 /*
 --------------------------------------------------------------------------------
